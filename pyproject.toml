@@ -13,3 +13,21 @@ dependencies = [
     "python-multipart==0.0.20",
     "python-dotenv==1.1.1",
 ]
+
+[tool.pytest.ini_options]
+# Always measure coverage when running the test suite.
+# The threshold in [tool.coverage.report] will cause pytest to exit non-zero
+# if coverage drops below the configured minimum.
+addopts = "--cov=backend --cov-report=term-missing"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["backend"]
+# Exclude the persisted ChromaDB data directory from measurement
+omit = ["backend/chroma_db/*"]
+
+[tool.coverage.report]
+show_missing = true
+# Fail (exit code 2) when total coverage falls below this percentage.
+# Raise this number as the test suite grows.
+fail_under = 60
