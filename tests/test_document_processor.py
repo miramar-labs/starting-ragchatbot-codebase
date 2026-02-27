@@ -247,3 +247,19 @@ class TestProcessCourseDocumentChunks:
         # The first chunk of a lesson should contain "Lesson N content:"
         first_chunks = [c for c in chunks if c.lesson_number == 1]
         assert any("Lesson 1" in c.content for c in first_chunks)
+
+
+class TestReadFile:
+    def test_read_file_valid_utf8(self, processor, tmp_path):
+        f = tmp_path / "valid.txt"
+        f.write_text("Hello, world!", encoding="utf-8")
+        assert processor.read_file(str(f)) == "Hello, world!"
+
+    def test_read_file_falls_back_on_encoding_error(self, processor, tmp_path):
+        # Write raw bytes that are invalid UTF-8 mixed with ASCII text
+        f = tmp_path / "broken.txt"
+        f.write_bytes(b"Good text \xff\xfe bad bytes then more good text")
+        # Should not raise; invalid bytes are silently dropped
+        result = processor.read_file(str(f))
+        assert "Good text" in result
+        assert "more good text" in result
