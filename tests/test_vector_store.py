@@ -7,6 +7,25 @@ with __new__.  SearchResults is a plain dataclass with no external dependencies.
 from vector_store import SearchResults, VectorStore
 
 
+class TestSearchResultsFromChroma:
+    def test_from_chroma_populates_fields(self):
+        chroma = {
+            "documents": [["chunk one", "chunk two"]],
+            "metadatas": [[{"course_title": "A"}, {"course_title": "B"}]],
+            "distances": [[0.1, 0.2]],
+        }
+        sr = SearchResults.from_chroma(chroma)
+        assert sr.documents == ["chunk one", "chunk two"]
+        assert sr.metadata == [{"course_title": "A"}, {"course_title": "B"}]
+        assert sr.distances == [0.1, 0.2]
+        assert sr.error is None
+
+    def test_from_chroma_empty_lists(self):
+        chroma = {"documents": [], "metadatas": [], "distances": []}
+        sr = SearchResults.from_chroma(chroma)
+        assert sr.is_empty() is True
+
+
 class TestSearchResults:
     def test_is_empty_true_when_no_documents(self):
         sr = SearchResults(documents=[], metadata=[], distances=[])
