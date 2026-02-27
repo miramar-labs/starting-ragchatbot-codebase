@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Document Processing Pipeline</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    body {
+      background: #0f1117;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      margin: 0;
+      padding: 32px 16px;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      color: #e2e8f0;
+    }
+    svg text { font-family: inherit; }
+  </style>
+</head>
+<body>
+<script>
+const W = 860, H = 1080;
+const svg = d3.select("body").append("svg")
+  .attr("width", W)
+  .attr("height", H)
+  .style("background", "#0f1117");
+
+// ── defs: arrowhead markers ───────────────────────────────────────────────────
+const defs = svg.append("defs");
+
+function addArrow(id, color) {
+  defs.append("marker")
+    .attr("id", id)
+    .attr("viewBox", "0 -5 10 10")
+    .attr("refX", 9).attr("refY", 0)
+    .attr("markerWidth", 7).attr("markerHeight", 7)
+    .attr("orient", "auto")
+    .append("path")
+      .attr("d", "M0,-5L10,0L0,5")
+      .attr("fill", color);
+}
+addArrow("arr-main",   "#64748b");
+addArrow("arr-loop",   "#818cf8");
+addArrow("arr-out",    "#34d399");
+addArrow("arr-side",   "#f59e0b");
+addArrow("arr-fall",   "#f87171");
+
+// ── colour palette ────────────────────────────────────────────────────────────
+const C = {
+  phase1:  { fill: "#1e3a5f", stroke: "#3b82f6", text: "#93c5fd" },
+  phase2:  { fill: "#2d1b69", stroke: "#818cf8", text: "#c4b5fd" },
+  phase3:  { fill: "#14432a", stroke: "#34d399", text: "#6ee7b7" },
+  warn:    { fill: "#431407", stroke: "#f87171", text: "#fca5a5" },
+  output:  { fill: "#1c3a2e", stroke: "#34d399", text: "#a7f3d0" },
+  store:   { fill: "#1e2d40", stroke: "#38bdf8", text: "#7dd3fc" },
+};
+
+// ── helpers ───────────────────────────────────────────────────────────────────
+function box(g, x, y, w, h, palette, title, sub) {
+  const rx = 8;
+  g.append("rect")
+    .attr("x", x).attr("y", y).attr("width", w).attr("height", h)
+    .attr("rx", rx)
+    .attr("fill", palette.fill)
+    .attr("stroke", palette.stroke)
+    .attr("stroke-width", 1.5);
+
+  g.append("text")
+    .attr("x", x + w / 2).attr("y", y + (sub ? h / 2 - 6 : h / 2 + 5))
+    .attr("text-anchor", "middle")
+    .attr("dominant-baseline", "middle")
+    .attr("fill", palette.text)
+    .attr("font-size", 13)
+    .attr("font-weight", "600")
+    .text(title);
+
+  if (sub) {
+    g.append("text")
+      .attr("x", x + w / 2).attr("y", y + h / 2 + 12)
+      .attr("text-anchor", "middle")
+      .attr("fill", palette.stroke)
+      .attr("font-size", 10.5)
+      .text(sub);
+  }
+}
+
+function arrow(g, x1, y1, x2, y2, markerId, color, dashed) {
+  g.append("line")
+    .attr("x1", x1).attr("y1", y1)
+    .attr("x2", x2).attr("y2", y2)
+    .attr("stroke", color)
+    .attr("stroke-width", 1.8)
+    .attr("stroke-dasharray", dashed ? "5,4" : null)
+    .attr("marker-end", `url(#${markerId})`);
+}
+
+function pathArr(g, d, markerId, color, dashed) {
+  g.append("path")
+    .attr("d", d)
+    .attr("fill", "none")
+    .attr("stroke", color)
+    .attr("stroke-width", 1.8)
+    .attr("stroke-dasharray", dashed ? "5,4" : null)
+    .attr("marker-end", `url(#${markerId})`);
+}
+
+function label(g, x, y, text, color) {
+  g.append("text")
+    .attr("x", x).attr("y", y)
+    .attr("text-anchor", "middle")
+    .attr("fill", color || "#94a3b8")
+    .attr("font-size", 10)
+    .text(text);
+}
+
+const root = svg.append("g");
+
+// ── title ─────────────────────────────────────────────────────────────────────
+root.append("text")
+  .attr("x", W / 2).attr("y", 36)
+  .attr("text-anchor", "middle")
+  .attr("fill", "#f1f5f9")
+  .attr("font-size", 17)
+  .attr("font-weight", "700")
+  .text("Document Processing Pipeline  ·  DocumentProcessor.process_course_document()");
+
+// ── layout constants ──────────────────────────────────────────────────────────
+const cx = W / 2;      // centre x
+const bw = 220;        // box width
+const bh = 52;         // box height
+const bx = cx - bw/2; // left edge of centred box
+
+// ── Phase 1: FILE INPUT ───────────────────────────────────────────────────────
+const y0 = 70;
+box(root, bx, y0, bw, bh, C.phase1, "read_file()", ".txt / .pdf / .docx");
+arrow(root, cx, y0+bh, cx, y0+bh+20, "arr-main", "#64748b");
+
+// ── Phase 1: HEADER PARSE ─────────────────────────────────────────────────────
+const y1 = y0+bh+20;
+box(root, bx, y1, bw, bh, C.phase1, "Parse Header  (lines 0–3)", "Course Title · Link · Instructor");
+arrow(root, cx, y1+bh, cx, y1+bh+20, "arr-main", "#64748b");
+
+// side note: Course object
+const noteW = 150, noteH = 44;
+const noteX = cx + bw/2 + 40;
+box(root, noteX, y1+4, noteW, noteH, C.store, "Course{}", "title, link, instructor");
+pathArr(root,
+  `M${cx+bw/2} ${y1+bh/2} H${noteX}`,
+  "arr-side", "#f59e0b");
+label(root, cx + bw/2 + 20, y1 + bh/2 - 8, "creates", "#f59e0b");
+
+// ── Phase 2: LESSON LOOP BOX ──────────────────────────────────────────────────
+const loopTop = y1+bh+20;
+const loopH   = 340;
+const loopW   = bw + 120;
+const loopX   = cx - loopW/2;
+
+root.append("rect")
+  .attr("x", loopX).attr("y", loopTop)
+  .attr("width", loopW).attr("height", loopH)
+  .attr("rx", 12)
+  .attr("fill", "none")
+  .attr("stroke", "#818cf8")
+  .attr("stroke-width", 1.2)
+  .attr("stroke-dasharray", "6,3");
+
+root.append("text")
+  .attr("x", loopX + 10).attr("y", loopTop + 16)
+  .attr("fill", "#818cf8")
+  .attr("font-size", 10.5)
+  .attr("font-weight", "600")
+  .text("LESSON LOOP  (lines 162–217)");
+
+// boxes inside loop
+const lbx = cx - bw/2;
+
+const y2 = loopTop + 28;
+box(root, lbx, y2, bw, bh, C.phase2, "Read next line");
+arrow(root, cx, y2+bh, cx, y2+bh+18, "arr-loop", "#818cf8");
+
+const y3 = y2+bh+18;
+// diamond decision
+const diamondCY = y3 + 32;
+const dw = 110, dh = 32;
+root.append("polygon")
+  .attr("points", `${cx},${diamondCY-dh} ${cx+dw},${diamondCY} ${cx},${diamondCY+dh} ${cx-dw},${diamondCY}`)
+  .attr("fill", "#2d1b69").attr("stroke", "#818cf8").attr("stroke-width", 1.5);
+root.append("text")
+  .attr("x", cx).attr("y", diamondCY)
+  .attr("text-anchor", "middle").attr("dominant-baseline", "middle")
+  .attr("fill", "#c4b5fd").attr("font-size", 12).attr("font-weight", "600")
+  .text("Lesson N: … ?");
+
+// YES branch (right) → flush + chunk
+const yesX = cx + dw + 20;
+label(root, cx + dw/2 + 20, diamondCY - 6, "YES", "#34d399");
+arrow(root, cx+dw, diamondCY, yesX, diamondCY, "arr-loop", "#818cf8");
+
+const flushW = 150, flushH = 80;
+root.append("rect")
+  .attr("x", yesX).attr("y", diamondCY - flushH/2)
+  .attr("width", flushW).attr("height", flushH)
+  .attr("rx", 8)
+  .attr("fill", C.phase2.fill).attr("stroke", C.phase2.stroke).attr("stroke-width", 1.5);
+root.append("text")
+  .attr("x", yesX+flushW/2).attr("y", diamondCY-14)
+  .attr("text-anchor","middle").attr("fill",C.phase2.text).attr("font-size",11).attr("font-weight","600")
+  .text("Flush prev lesson");
+root.append("text")
+  .attr("x", yesX+flushW/2).attr("y", diamondCY+2)
+  .attr("text-anchor","middle").attr("fill","#818cf8").attr("font-size",10)
+  .text("→ chunk_text()");
+root.append("text")
+  .attr("x", yesX+flushW/2).attr("y", diamondCY+16)
+  .attr("text-anchor","middle").attr("fill","#818cf8").attr("font-size",10)
+  .text("→ CourseChunk[]");
+
+// NO branch (down) → accumulate
+const y4 = diamondCY + dh + 16;
+label(root, cx - 20, diamondCY + dh/2 + 10, "NO", "#f87171");
+arrow(root, cx, diamondCY+dh, cx, y4, "arr-loop", "#818cf8");
+box(root, lbx, y4, bw, bh, C.phase2, "Accumulate line", "→ lesson_content[]");
+
+// back-arrow (loop)
+const loopBackX = loopX - 18;
+const loopArrowY1 = y4 + bh/2;
+const loopArrowY2 = y2 + bh/2;
+pathArr(root,
+  `M${lbx} ${loopArrowY1} H${loopBackX} V${loopArrowY2} H${lbx}`,
+  "arr-loop", "#818cf8");
+label(root, loopBackX - 22, (loopArrowY1+loopArrowY2)/2, "next line", "#818cf8");
+
+// exit arrow from loop
+arrow(root, cx, y4+bh, cx, loopTop+loopH+4, "arr-main", "#64748b");
+
+// ── POST-LOOP FLUSH ───────────────────────────────────────────────────────────
+const y5 = loopTop + loopH + 4;
+box(root, bx, y5, bw, bh, C.phase2, "Flush last lesson  (post-loop)", "lines 219–243");
+arrow(root, cx, y5+bh, cx, y5+bh+20, "arr-main", "#64748b");
+
+// ── CHUNK_TEXT detail ─────────────────────────────────────────────────────────
+const y6 = y5+bh+20;
+box(root, bx, y6, bw, bh, C.phase3, "chunk_text()", "sentence split → sliding overlap");
+
+// right callout
+const ctNoteX = cx + bw/2 + 40;
+const ctNoteW = 148;
+root.append("rect")
+  .attr("x", ctNoteX).attr("y", y6)
+  .attr("width", ctNoteW).attr("height", 80)
+  .attr("rx", 8)
+  .attr("fill", "#0f2a1a").attr("stroke","#34d399").attr("stroke-width",1);
+[
+  ["chunk_size: 800 chars", 15],
+  ["chunk_overlap: 100 chars", 29],
+  ["regex sentence split", 43],
+  ["sliding window overlap", 57],
+].forEach(([t, dy]) =>
+  root.append("text").attr("x", ctNoteX+10).attr("y", y6+dy)
+    .attr("fill","#6ee7b7").attr("font-size",10).text("· "+t)
+);
+pathArr(root, `M${cx+bw/2} ${y6+28} H${ctNoteX}`, "arr-side", "#34d399");
+
+arrow(root, cx, y6+bh, cx, y6+bh+20, "arr-main", "#64748b");
+
+// ── FALLBACK ──────────────────────────────────────────────────────────────────
+const y7 = y6+bh+20;
+const fallX = loopX - 10;
+const fallW = 130, fallH = 48;
+root.append("rect")
+  .attr("x", fallX).attr("y", y7)
+  .attr("width", fallW).attr("height", fallH)
+  .attr("rx", 8)
+  .attr("fill", C.warn.fill).attr("stroke", C.warn.stroke).attr("stroke-width", 1.5);
+root.append("text").attr("x", fallX+fallW/2).attr("y", y7+16)
+  .attr("text-anchor","middle").attr("fill",C.warn.text).attr("font-size",11).attr("font-weight","600")
+  .text("Fallback");
+root.append("text").attr("x", fallX+fallW/2).attr("y", y7+31)
+  .attr("text-anchor","middle").attr("fill","#f87171").attr("font-size",10)
+  .text("no lessons found");
+pathArr(root,
+  `M${bx} ${y7+fallH/2} H${fallX+fallW}`,
+  "arr-fall", "#f87171");
+label(root, bx - 30, y7+fallH/2-8, "if empty", "#f87171");
+
+// ── OUTPUT ────────────────────────────────────────────────────────────────────
+const y8 = y7 + 28;
+box(root, bx, y8, bw, bh, C.output, "Return", "Course  +  List[CourseChunk]");
+arrow(root, cx, y8+bh, cx, y8+bh+20, "arr-out", "#34d399");
+
+// ── VECTOR STORE ──────────────────────────────────────────────────────────────
+const y9 = y8+bh+20;
+const vsW = bw + 60, vsX = cx - vsW/2;
+box(root, vsX, y9, vsW/2-4, bh, C.store, "add_course_metadata()", "course_catalog");
+box(root, vsX+vsW/2+4, y9, vsW/2-4, bh, C.store, "add_course_content()", "course_content");
+
+// arrows into vector store boxes
+arrow(root, cx - vsW/4 - 2, y9, cx - vsW/4 - 2, y9, "arr-out", "#34d399");
+pathArr(root, `M${cx} ${y9} H${cx-vsW/4-2}`, "arr-out", "#34d399");
+pathArr(root, `M${cx} ${y9} H${cx+vsW/4+2}`, "arr-out", "#34d399");
+
+// ── phase labels (left margin) ────────────────────────────────────────────────
+function phaseLabel(y, text, color) {
+  root.append("text")
+    .attr("x", 16).attr("y", y)
+    .attr("fill", color).attr("font-size", 10).attr("font-weight","700")
+    .attr("writing-mode","tb")
+    .text(text);
+}
+// Simple horizontal phase badges instead
+function phaseBadge(y, h, text, color) {
+  root.append("rect").attr("x",12).attr("y",y).attr("width",28).attr("height",h)
+    .attr("rx",4).attr("fill","none").attr("stroke",color).attr("stroke-width",1);
+  root.append("text").attr("x",26).attr("y",y+h/2)
+    .attr("text-anchor","middle").attr("dominant-baseline","middle")
+    .attr("fill",color).attr("font-size",9).attr("font-weight","700")
+    .attr("transform",`rotate(-90,26,${y+h/2})`)
+    .text(text);
+}
+phaseBadge(y0, (y1+bh)-(y0), "PHASE 1  HEADER", "#3b82f6");
+phaseBadge(loopTop, loopH + (y5+bh - (loopTop+loopH)), "PHASE 2  LOOP", "#818cf8");
+phaseBadge(y6, y8+bh-y6, "PHASE 3  CHUNK", "#34d399");
+phaseBadge(y9, bh+10, "STORE", "#38bdf8");
+
+</script>
+</body>
+</html>
