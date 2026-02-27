@@ -29,3 +29,8 @@ uploads/
 # OS
 .DS_Store
 Thumbs.db
+
+# Test / coverage artifacts
+.coverage
+.pytest_cache/
+htmlcov/
