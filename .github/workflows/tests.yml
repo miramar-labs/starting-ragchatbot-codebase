@@ -1,0 +1,35 @@
+name: Tests
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements-test.txt \
+                      fastapi==0.116.1 \
+                      python-dotenv==1.1.1 \
+                      python-multipart==0.0.20
+        # chromadb, sentence-transformers, and anthropic are heavy ML packages
+        # that are stubbed out in tests/conftest.py via sys.modules mocking,
+        # so they do not need to be installed in CI.
+
+      - name: Run tests with coverage
+        # pytest reads [tool.pytest.ini_options] from pyproject.toml, which adds
+        # --cov=backend --cov-report=term-missing automatically.
+        # [tool.coverage.report] fail_under=60 causes a non-zero exit if the
+        # total coverage falls below 60%, failing this workflow step.
+        run: python -m pytest tests/ -v
